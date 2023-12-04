@@ -201,7 +201,7 @@ def onset_mask(
     import tempfile
     import numpy as np 
 
-    with tempfile.NamedTemporaryFile(suffix='.wav') as f:
+    with tempfile.NamedTemporaryFile(suffix='.wav',delete=False) as f:
         sig = sig.clone()
         sig.write(f.name)
 

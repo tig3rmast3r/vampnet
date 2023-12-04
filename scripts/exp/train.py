@@ -497,7 +497,7 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        model = torch.compile(
+        model = (
             VampNet.load(location=Path(fine_tune_checkpoint), 
                          map_location="cpu", 
             )
@@ -520,7 +520,7 @@ def load(
 
 
 
-    model = torch.compile(VampNet()) if model is None else model
+    model = (VampNet()) if model is None else model
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
