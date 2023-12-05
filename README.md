@@ -120,11 +120,11 @@ python scripts/finetune/ftcfg.py mysamples mymodel
 ```
 Case 2 (with validation sample folder)
 ```bash
-python scripts/finetune/ftcfgval.py <samplefolder> <valfolder> <fine_tune_name>
+python scripts/finetune/ftcfgval.py <samplefolder> <fine_tune_name> <valfolder>
 ```
 example
 ```bash
-python scripts/finetune/ftcfgval mysamples myvalsamples mymodel
+python scripts/finetune/ftcfgval mysamples mymodel myvalsamples
 ```
 After that you can modify your lora.yml according to your desired epochs using the following script
 NOTE: configure conf/lora/lora.yml batch_size/num_workers according to you free gpu RAM.
