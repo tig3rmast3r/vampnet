@@ -109,6 +109,7 @@ python  app.py --args.load conf/generated/<fine_tune_name>/interface.yml
 Standard method is not usable for fine-tuning large dataset (error command line too long) so here's an alternative
 Put your samples folder into train/ eg:vampnet/train/mysamples/
 Put your (optional) validation samples in another folder on train/ eg:vampnet/train/myvalsamples/
+
 Case 1 (no validation samples folder)
 ```bash
 python scripts/finetune/ftcfg.py <samplefolder> <fine_tune_name>
