@@ -175,15 +175,14 @@ lyrebird-audio-codec
 samples-*/**
 
 gradio-outputs/
-models/vampnet/
-models/wavebeat.pth
+models/
 samples*/
 models-all/
 models.zip
 .git-old
 conf/generated/*
 runs*/
-processed_files/
+gradio-export/
 old/
 
 
