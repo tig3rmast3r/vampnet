@@ -1,0 +1,6 @@
+AudioLoader.sources:
+- 
+Interface.coarse2fine_ckpt: ./runs/path/c2f/latest/vampnet/weights.pth
+Interface.coarse_ckpt: ./runs/path/coarse/latest/vampnet/weights.pth
+Interface.codec_ckpt: ./models/vampnet/codec.pth
+Interface.wavebeat_ckpt: ./models/wavebeat.pth

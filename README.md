@@ -105,4 +105,49 @@ launch the interface:
 python  app.py --args.load conf/generated/<fine_tune_name>/interface.yml 
 ```
 
+## Fine-tuning ALT Method (for large datasets)
+Standard method is not usable for fine-tuning large dataset (error command line too long) so here's an alternative
+Put your samples folder into train/ eg:vampnet/train/mysamples/
+Put your (optional) validation samples in another folder on train/ eg:vampnet/train/myvalsamples/
+Case 1 (no validation samples folder)
+```bash
+python scripts/finetune/ftcfg.py <samplefolder> <fine_tune_name>
+```
+example
+```bash
+python scripts/finetune/ftcfg.py mysamples mymodel
+```
+Case 2 (with validation sample folder)
+```bash
+python scripts/finetune/ftcfgval.py <samplefolder> <valfolder> <fine_tune_name>
+```
+example
+```bash
+python scripts/finetune/ftcfgval mysamples myvalsamples mymodel
+```
+After that you can modify your lora.yml according to your desired epochs using the following script
+NOTE: configure conf/lora/lora.yml batch_size/num_workers according to you free gpu RAM.
+i suggest 5 for 24GB , 3 for 16GB, 2 for 12GB, 1 for 8GB, if you run out of vram it will continue but slower
+use same value for both batch_size/workers
 
+Case 1 (no validation samples folder)
+```bash
+python scripts/finetune/ftloracfg.py <samplefolder> <val_epochs_freq> <sample(save)_epochs_freq)> <1st_epochs_checkpoint> <2nd_epochs_checkpoint> <3rd_epochs_checkpoints> <4th_epochs_checkpoint> <5th_epochs_checkpoint>
+```
+example:
+```bash
+python scripts/finetune/ftloracfg.py mysamples 25 50 100 200 300 400 500
+```
+Case 2 (with validation samples folder)
+```bash
+python scripts/finetune/ftloracfg.py <samplefolder> <validation_folder> <val_epochs_freq> <sample(save)_epochs_freq)> <1st_epochs_checkpoint> <2nd_epochs_checkpoint> <3rd_epochs_checkpoints> <4th_epochs_checkpoint> <5th_epochs_checkpoint>
+```
+example:
+```bash
+python scripts/finetune/ftloracfg.py mysamples myvalsamples 25 50 100 200 300 400 500
+```
+
+## Fork_info
+- Little modifications to let this work on Windows (and ubuntu WSL)
+Note: in order to use python 3.11.x (Windows only) install madmom from git source
+- Alternate method to configure files for fine-tuning
