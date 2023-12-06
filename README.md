@@ -154,4 +154,4 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - Alternate method to configure files for fine-tuning
 - New script createchunks.py, more info inside the script
 - Added cp1252_To_Append.py, you have to append those lines to your cp1252.py file under python_path\Lib\Encodings in order to avoid charmap errors during fine-tuning
-- Added Gradio-Export script, this simple script will save your gradio-outputs wav files into gradio-export folder removing all folders and adding a timestamp prefix to names
+- Added Gradio-Export script, this simple script will save your gradio-outputs wav files into gradio-export folder removing all folders and adding a timestamp prefix to names, the script supports also double click, no need to launch from command line
