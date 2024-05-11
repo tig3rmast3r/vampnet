@@ -214,10 +214,8 @@ typer                     0.9.0
 typing-inspect            0.9.0
 uc-micro-py               1.0.2
 umap-learn                0.5.5
-unloop                    1.0          C:\Users\x4lch\Documents\unloop\unloop
 urllib3                   1.26.16
 uvicorn                   0.23.1
-vampnet                   0.0.1        C:\Users\x4lch\Documents\vampnetgit\vampnet
 wasabi                    1.1.2
 wavebeat                  0.0.1
 wcwidth                   0.2.6
