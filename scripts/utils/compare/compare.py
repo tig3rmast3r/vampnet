@@ -27,8 +27,8 @@ def create_requirements_file(file_path_new, file_path_working, output_file):
         for module, new_version in new_modules.items():
             if module in working_modules:
                 working_version = working_modules[module]
-                if new_version != pc_version:
-                    file.write(f"{module}=={pc_version}\n")
+                if new_version != working_version:
+                    file.write(f"{module}=={working_version}\n")
 
 # paths
 file_path_new = 'new'
