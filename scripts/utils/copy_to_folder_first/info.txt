@@ -1,0 +1,1 @@
+scripts in this folder can be double-clicked, copy the script into the desired folder

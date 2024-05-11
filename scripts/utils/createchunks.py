@@ -1,10 +1,10 @@
 #universal chunk creator - input must be MP3 or WAV
-#usage (from vampnet folder) python scripts/utils/ceatechunks.py "<absolute sourcedir>" <destination folder>
+#usage (from vampnet folder) python scripts/utils/createchunks.py "<absolute sourcedir>" <destination folder>
 #destination folder will be saved into vampnet/train/
 #it will search recursively if there are additional folders inside the main one
 #Case 1 - audio is less than 10 seconds, i assume is a loop so it will be repeated as many time as needed to reach 10 seconds
-#Case 2 - audio is from 10 to 69 sec. May be a manual recording or a longer loop, it will trim starting blank(if any) and trim exceeding audio
-#Case 3 - file is longer than 69 sec, may be a track or a mixed compilation, it will save a chunk every 10 seconds, starting from 60 seconds
+#Case 2 - audio is from 10 to 70 sec. May be a manual recording or a longer loop, it will trim starting blank(if any) and trim exceeding audio
+#Case 3 - file is longer than 70 sec, may be a track or a mixed compilation, it will save a chunk every 60 seconds, starting from 60 seconds
 #this is intended for electronic music that is usually very repetitive and splitting audio every 10 sec will bring lot of redundancy
 #final check - if chunk is not blank or too low it will be normalized and then saved, will also fix to 16 bit 44100hz
 import os
@@ -56,7 +56,7 @@ def process_audio(file_path, output_dir, file_name):
             output_files.append(output_file)
 
     # Case 2
-    elif duration_ms <= 69000:
+    elif duration_ms <= 69999:
         start_trim = detect_leading_silence(audio, silence_threshold=-30.0)
         end_trim = start_trim + 10000
         if end_trim <= duration_ms:

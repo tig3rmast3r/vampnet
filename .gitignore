@@ -184,6 +184,8 @@ conf/generated/*
 runs*/
 gradio-export/
 old/
+rickymodels/
+train/
 
 
 gtzan.zip

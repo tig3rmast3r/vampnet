@@ -1,0 +1,3 @@
+scripts/utils/compare/compare.py eol=lf
+scripts/utils/quickinstall.sh eol=lf
+scripts/utils/train_calculator.py eol=lf
