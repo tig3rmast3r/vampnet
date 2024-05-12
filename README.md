@@ -167,4 +167,6 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - new script parse_and_export_linux_log, will convert log.txt from training into csv (works only for linux logs)
 - new folder scripts/compare, temporary folder to fix bad audio results for training in linux (used in bash setup)
 - new bash script quickinstall.sh, use this to quickly configure a fresh ubuntu22.04 Cuda container, more info inside
+- new pth_reader to see pth content
+- new noam_recalculator, will recalculate noam.factor and step to maintain a similar curve when changing the batch size (moving to another server) and modifies tracker.pth and scheduler.pth accordingly
 
