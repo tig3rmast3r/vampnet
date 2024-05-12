@@ -28,15 +28,19 @@ def is_audio_not_silent(audio_segment):
     Checks if the audio segment is not silent.
     """
     return audio_segment.dBFS > -30.0
-
 def process_audio(file_path, output_dir, file_name):
     # Carica il file audio in base al suo formato
     if file_path.endswith('.mp3'):
         audio = AudioSegment.from_mp3(file_path)
     elif file_path.endswith('.wav'):
         audio = AudioSegment.from_wav(file_path)
+    elif file_path.endswith('.m4a'):
+        audio = AudioSegment.from_file(file_path, format='m4a')
+    elif file_path.endswith('.aac'):
+        audio = AudioSegment.from_file(file_path, format='aac')
     else:
-        return []  # Salta i file che non sono mp3 o wav
+        return []  # Salta i file che non sono mp3, wav, m4a, o aac
+
 
     # Conversione a mono e impostazione del sample rate
     audio = audio.set_channels(1).set_frame_rate(44100)
@@ -97,7 +101,7 @@ def main():
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
-            if file.endswith('.wav') or file.endswith('.mp3'):
+            if file.endswith(('.wav', '.mp3', '.m4a', '.aac')):
                 file_path = os.path.join(root, file)
                 print(f"Processing {file}...")
                 process_audio(file_path, output_dir, file)
