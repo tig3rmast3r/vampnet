@@ -1,4 +1,4 @@
-#universal chunk creator - input must be MP3 or WAV
+#universal chunk creator - input must be MP3,WAV,AAC,M4A
 #usage (from vampnet folder) python scripts/utils/createchunks.py "<absolute sourcedir>" <destination folder>
 #destination folder will be saved into vampnet/train/
 #it will search recursively if there are additional folders inside the main one
@@ -89,7 +89,7 @@ def process_audio(file_path, output_dir, file_name):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python script.py <source_directory> <output_subdirectory>")
+        print("Usage: python createchunks.py <source_directory> <output_subdirectory>")
         sys.exit(1)
 
     source_dir = sys.argv[1]
