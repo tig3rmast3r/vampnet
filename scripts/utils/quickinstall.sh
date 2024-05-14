@@ -14,7 +14,7 @@
 # chmod +x quickinstall.sh
 # ./quickinstall.sh
 
-git clone https://github.com/hugofloresgarcia/vampnet.git
+git clone https://github.com/tig3rmast3r/vampnet
 #this is pytorch 2.3.0 at the time of writing
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
 pip install cython
