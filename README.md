@@ -53,14 +53,12 @@ python app.py --args.load conf/interface.yml --Interface.device cuda
 To train a model, run the following script: 
 
 ```bash
-python scripts/exp/train.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints
+python scripts/exp/train.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints [--resume] [--nocompile] [--lh]
 ```
-For Windows use the nc version (without torch.compile)
+You can resume a training with --resume
+For Windows you must enable -nocompile option that will disable torch.compile that is not available (around 10% slower, Windows too is around 5% than linux).
+You can experiment with an alternate version of adamw optimizer called AdamW-lh using -lh option. (a bit slower)
 
-```bash
-python scripts/exp/train-nc.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints
-```
-I've added an alternate AdamW (lh) optimizer to test. use train-lh.py or train-nc-lh.py to use the lh version.
 source: https://fabian-sp.github.io/posts/2024/02/decoupling/
 
 for multi-gpu training, use torchrun:
@@ -177,5 +175,5 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - new pth_reader to see pth content
 - new noam_recalculator, will recalculate noam.factor and step to maintain a similar decay curve when changing the batch size (moving to another server) and modifies tracker.pth and scheduler.pth accordingly
 - new pth_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
-- train.py comes now in 4 versions, with and without torch.compile and alternate AdamW optimizer
+- Added options -nocompile and -lh on train.py
 

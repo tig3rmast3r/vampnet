@@ -32,6 +32,8 @@ import loralib as lora
 import torch._dynamo
 torch._dynamo.config.verbose=True
 
+# Import the alternative optimizer module if `--lh` is used
+from adam_lh import AdamLH
 
 # Enable cudnn autotuner to speed up training
 # (can be altered by the funcs.seed function)
@@ -478,7 +480,6 @@ def save_samples(state: State, val_idx: int, writer: SummaryWriter):
     save_imputation(state=state, z=z, val_idx=val_idx, writer=writer)
 
 
-
 @argbind.bind(without_prefix=True)
 def load(
     args,
@@ -497,12 +498,10 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        model = torch.compile(
-            VampNet.load(location=Path(fine_tune_checkpoint), 
-                         map_location="cpu", 
-            )
-        )
-        
+        model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
+        if not args["nocompile"]:
+            model = torch.compile(model)
+
     if resume:
         kwargs = {
             "folder": f"{save_path}/{tag}",
@@ -517,10 +516,11 @@ def load(
                 f"Could not find a VampNet checkpoint in {kwargs['folder']}"
             )
 
-
-
-
-    model = torch.compile(VampNet()) if model is None else model
+    if model is None:
+        model = VampNet()
+        if not args["nocompile"]:
+            model = torch.compile(model)
+            
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
@@ -528,13 +528,15 @@ def load(
         accel.unwrap(model).vocab_size == codec.quantizer.quantizers[0].codebook_size
     )
 
-
     if accel.world_size > 1:
         from torch.distributed.optim import ZeroRedundancyOptimizer
         optimizer = ZeroRedundancyOptimizer(model.parameters(), AdamW)
         print(f"OPTIMIZER LR is {optimizer.param_groups[0]['lr']}")
     else:
-        optimizer = AdamW(model.parameters())
+        if args["lh"]:
+            optimizer = AdamLH(model.parameters(), lr=args["adamw.lr"])
+        else:
+            optimizer = AdamW(model.parameters())
 
     scheduler = NoamScheduler(optimizer, d_model=accel.unwrap(model).embedding_dim)
     scheduler.step()
