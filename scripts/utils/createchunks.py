@@ -28,21 +28,25 @@ def is_audio_not_silent(audio_segment):
     Checks if the audio segment is not silent.
     """
     return audio_segment.dBFS > -30.0
+
 def process_audio(file_path, output_dir, file_name):
-    # Carica il file audio in base al suo formato
-    if file_path.endswith('.mp3'):
-        audio = AudioSegment.from_mp3(file_path)
-    elif file_path.endswith('.wav'):
-        audio = AudioSegment.from_wav(file_path)
-    elif file_path.endswith('.m4a'):
-        audio = AudioSegment.from_file(file_path, format='m4a')
-    elif file_path.endswith('.aac'):
-        audio = AudioSegment.from_file(file_path, format='aac')
-    else:
-        return []  # Salta i file che non sono mp3, wav, m4a, o aac
+    # losd file
+    try:
+        if file_path.endswith('.mp3'):
+            audio = AudioSegment.from_mp3(file_path)
+        elif file_path.endswith('.wav'):
+            audio = AudioSegment.from_wav(file_path)
+        elif file_path.endswith('.m4a'):
+            audio = AudioSegment.from_file(file_path, format='m4a')
+        elif file_path.endswith('.aac'):
+            audio = AudioSegment.from_file(file_path, format='aac')
+        else:
+            return []  # skip if not audio
+    except Exception as e:
+        print(f"Errore nel leggere il file {file_path}: {e}")
+        return []  # skip if error
 
-
-    # Conversione a mono e impostazione del sample rate
+    # fix channels and sample rate
     audio = audio.set_channels(1).set_frame_rate(44100)
 
     duration_ms = len(audio)
@@ -56,8 +60,9 @@ def process_audio(file_path, output_dir, file_name):
         if is_audio_not_silent(audio):
             audio = audio.normalize(headroom=0.1)
             output_file = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}.wav")
-            audio.export(output_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
-            output_files.append(output_file)
+            if not os.path.exists(output_file):
+                audio.export(output_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
+                output_files.append(output_file)
 
     # Case 2
     elif duration_ms <= 69999:
@@ -68,9 +73,11 @@ def process_audio(file_path, output_dir, file_name):
             if is_audio_not_silent(audio):
                 audio = audio.normalize(headroom=0.1)
                 output_file = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}.wav")
-                audio.export(output_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
-                output_files.append(output_file)
-    #Case 3
+                if not os.path.exists(output_file):
+                    audio.export(output_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
+                    output_files.append(output_file)
+    
+    # Case 3
     else:
         for i in range(1, duration_ms // 60000 + 1):
             start_ms = i * 60000
@@ -82,8 +89,9 @@ def process_audio(file_path, output_dir, file_name):
             if is_audio_not_silent(chunk):
                 chunk = chunk.normalize(headroom=0.1)
                 chunk_file = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}_{str(i).zfill(3)}.wav")
-                chunk.export(chunk_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
-                output_files.append(chunk_file)
+                if not os.path.exists(chunk_file):
+                    chunk.export(chunk_file, format='wav', parameters=["-ac", "1", "-ar", "44100", "-sample_fmt", "s16"])
+                    output_files.append(chunk_file)
 
     return output_files
 
@@ -103,8 +111,13 @@ def main():
         for file in files:
             if file.endswith(('.wav', '.mp3', '.m4a', '.aac')):
                 file_path = os.path.join(root, file)
+                output_file_base = os.path.join(output_dir, f"{os.path.splitext(file)[0]}")
+                if any(os.path.exists(f"{output_file_base}_{str(i).zfill(3)}.wav") for i in range(1, (len(files) // 60000) + 2)):
+                    print(f"Skipping {file} as it already exists in the output directory.")
+                    continue
                 print(f"Processing {file}...")
                 process_audio(file_path, output_dir, file)
 
 if __name__ == "__main__":
     main()
+
