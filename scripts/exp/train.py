@@ -61,7 +61,6 @@ filter_fn = lambda fn: hasattr(fn, "transform") and fn.__qualname__ not in [
 # model
 VampNet = argbind.bind(VampNet)
 
-
 # data
 AudioLoader = argbind.bind(at.datasets.AudioLoader)
 AudioDataset = argbind.bind(at.datasets.AudioDataset, "train", "val")
@@ -487,6 +486,8 @@ def load(
     tracker: Tracker,
     save_path: str,
     resume: bool = False,
+    nocompile: bool = False,
+    lh: bool = False,
     tag: str = "latest",
     fine_tune_checkpoint: Optional[str] = None,
     grad_clip_val: float = 5.0,
@@ -498,9 +499,10 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
-        if not args["nocompile"]:
-            model = torch.compile(model)
+        model = torch.compile(VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu"))
+        if nocompile:
+            model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
+            print (f"torch.compile DISABLED")
 
     if resume:
         kwargs = {
@@ -517,9 +519,10 @@ def load(
             )
 
     if model is None:
-        model = VampNet()
-        if not args["nocompile"]:
-            model = torch.compile(model)
+        model = torch.compile(VampNet())
+        if nocompile:
+            model = VampNet()
+            print (f"torch.compile DISABLED")
             
     model = accel.prepare_model(model)
 
@@ -533,8 +536,9 @@ def load(
         optimizer = ZeroRedundancyOptimizer(model.parameters(), AdamW)
         print(f"OPTIMIZER LR is {optimizer.param_groups[0]['lr']}")
     else:
-        if args["lh"]:
-            optimizer = AdamLH(model.parameters(), lr=args["adamw.lr"])
+        if lh:
+            optimizer = AdamLH(model.parameters())
+            print (f"using LH optimizer")
         else:
             optimizer = AdamW(model.parameters())
 
@@ -612,7 +616,11 @@ def train(
         args=args, 
         accel=accel, 
         tracker=tracker, 
-        save_path=save_path)
+        save_path=save_path,
+        resume=args.get("resume", False),  # Pass the parameter to the load function
+        nocompile=args.get("nocompile", False),  # Pass the parameter to the load function
+        lh=args.get("lh", False)  # Pass the parameter to the load function
+    )
     print("initialized state.")
 
     train_dataloader = accel.prepare_dataloader(
@@ -686,3 +694,4 @@ if __name__ == "__main__":
             if accel.local_rank != 0:
                 sys.tracebacklimit = 0
             train(args, accel)
+
