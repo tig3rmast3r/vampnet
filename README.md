@@ -158,12 +158,12 @@ python scripts/finetune/ftloracfgval.py mysamples myvalsamples 25 50 100 200 300
 Note: in order to use python 3.11.x (Windows only) install madmom from git source
 - Alternate method to configure files for fine-tuning
 - New script createchunks.py, more info inside the script
-- Added cp1252_To_Append.py, you have to append those lines to your cp1252.py file under python_path\Lib\Encodings in order to avoid charmap errors during fine-tuning
+- Added cp1252_To_Append.py, you have to append those lines to your cp1252.py file under python_path\Lib\Encodings in order to avoid charmap errors during fine-tuning/training (Windows Only)
 - Added Gradio-Export script, this simple script will save your gradio-outputs wav files into gradio-export folder removing all folders and adding a timestamp prefix to names, the script supports also double click, no need to launch from command line
 - new script check_normalization, will check an entire folder (with optional normalization)
 - new script check_LUFS, will output LUFS for a folder
 - new script check cuda, check if cuda is working
-- new script train_calculator, will calculate total training based on settings, original model is around 2.5 total train value (based on his pdf on ArXiv)
+- new script train_calculator, will calculate total training based on settings, original model is around 2500 total train value (based on his pdf on ArXiv)
 - new script rename_special_chars, will rename audio chunks names to remove not ASCII chars that will lead to errors during training
 - new script convert_m4a_to_wav
 - new script convert_to_mono
