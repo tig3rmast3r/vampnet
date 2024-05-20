@@ -5,6 +5,7 @@
 # cd workspace
 # wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /workspace/Miniconda3-latest-Linux-x86_64.sh
 # bash /workspace/Miniconda3-latest-Linux-x86_64.sh -b -p /workspace/miniconda
+# echo 'export PATH="/workspace/miniconda/bin:$PATH"' >> ~/.bashrc
 # source ~/.bashrc
 # conda init bash
 # source ~/.bashrc
@@ -16,7 +17,7 @@
 
 git clone https://github.com/tig3rmast3r/vampnet
 #best python/pytorch combination for torch.compile to work with no errors
-conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia -y
 pip install cython
 apt install build-essential -y
 git clone https://github.com/CPJKU/madmom
