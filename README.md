@@ -184,4 +184,4 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - new pth_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
 - Added options -nocompile and -lh on train.py
 - new loselesscompress script to quickly convert dataset from wav to flac and viceversa. helps uploading time and training time too.
-
+- new option for ReduceLROnPlateauScheduler as alternative for NoamScheduler
