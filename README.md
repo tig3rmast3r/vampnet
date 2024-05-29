@@ -56,15 +56,24 @@ To train a model, run the following script:
 python scripts/exp/train.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints [--resume] [--nocompile] [--lh] [--rlrop]
 ```
 You can resume a training with --resume
-For Windows you must enable -nocompile option that will disable torch.compile that is not available (around 10% slower, Windows too is around 5% than linux).
-You can experiment with an alternate version of adamw optimizer called AdamW-lh using -lh option. (slower but lower grad_norm)
+
+For Windows you must enable --nocompile option that will disable torch.compile that is not available (around 10% slower, Windows too is around 5% than linux).
+
+You can experiment with an alternate version of adamw optimizer called AdamW-lh using --lh option. (slower but lower grad_norm)
+
 source: https://fabian-sp.github.io/posts/2024/02/decoupling/
 
+
 Very rude implementation of ReduceLROnPlateauScheduler with command --rlrop
+
 When using this scheduler:
-NoamScheduler.factor in vampnet.yml will be treated as rlrop factor (reduce next lr by factorm typical usage 0.5<->0.8)
+
+NoamScheduler.factor in vampnet.yml will be treated as rlrop factor (reduce next lr by factor, typical usage 0.5<->0.8)
+
 NoamScheduler.warmup in vampnet.yml will be treated as rlrop patience (number of bad vals before lr reduction, typical usage 10)
+
 Also, starting lr will be honored by AdamW.lr in vampnet.yml (it has no sense when using noam scheduler as it will be immediately overwritten by Noam calculations)
+
 Other paramaters are fixed but you can change them editing vampnet/scheduler.py, (lines 32 and 57), mainly the other relevant value is threshold (0.001 by default), unless you want it to do a completely different task.
 
 
@@ -184,4 +193,4 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - new pth_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
 - Added options -nocompile and -lh on train.py
 - new loselesscompress script to quickly convert dataset from wav to flac and viceversa. helps uploading time and training time too.
-- new option for ReduceLROnPlateauScheduler as alternative for NoamScheduler
+- new option for ReduceLROnPlateauScheduler as alternative to NoamScheduler
