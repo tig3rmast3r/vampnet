@@ -22,6 +22,7 @@ from vampnet.util import codebook_unflatten, codebook_flatten
 from vampnet import mask as pmask
 # from dac.model.dac import DAC
 from lac.model.lac import LAC as DAC
+from vampnet.scheduler import get_scheduler, NoamScheduler, ReduceLROnPlateauScheduler
 
 from audiotools.ml.decorators import (
     timer, Tracker, when
@@ -316,12 +317,20 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
 
 def validate(state, val_dataloader, accel):
+    val_losses = []
     for batch in val_dataloader:
         output = val_loop(state, batch, accel)
+        loss = output["loss"]
+        if isinstance(loss, torch.Tensor):
+            val_losses.append(loss.item())
+        else:
+            val_losses.append(loss)
     # Consolidate state dicts if using ZeroRedundancyOptimizer
     if hasattr(state.optimizer, "consolidate_state_dict"):
         state.optimizer.consolidate_state_dict()
-    return output
+    mean_val_loss = sum(val_losses) / len(val_losses)
+    return {"loss": mean_val_loss}
+
 
 
 def checkpoint(state, save_iters, save_path, fine_tune):
@@ -342,11 +351,11 @@ def checkpoint(state, save_iters, save_path, fine_tune):
         tags.append("best")
 
     if fine_tune:
-        for tag in tags: 
-            # save the lora model 
+        for tag in tags:
+            # save the lora model
             (Path(save_path) / tag).mkdir(parents=True, exist_ok=True)
             torch.save(
-                lora.lora_state_dict(accel.unwrap(state.model)), 
+                lora.lora_state_dict(accel.unwrap(state.model)),
                 f"{save_path}/{tag}/lora.pth"
             )
 
@@ -491,6 +500,7 @@ def load(
     tag: str = "latest",
     fine_tune_checkpoint: Optional[str] = None,
     grad_clip_val: float = 5.0,
+    rlrop2: bool = False,
 ) -> State:
     codec = DAC.load(args["codec_ckpt"], map_location="cpu")
     codec.eval()
@@ -499,10 +509,11 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        model = torch.compile(VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu"))
         if nocompile:
             model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
             print (f"torch.compile DISABLED")
+        else:
+            model = torch.compile(VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu"))
 
     if resume:
         kwargs = {
@@ -519,10 +530,11 @@ def load(
             )
 
     if model is None:
-        model = torch.compile(VampNet())
         if nocompile:
             model = VampNet()
             print (f"torch.compile DISABLED")
+        else:
+            model = torch.compile(VampNet())
             
     model = accel.prepare_model(model)
 
@@ -542,14 +554,19 @@ def load(
         else:
             optimizer = AdamW(model.parameters())
 
-    scheduler = NoamScheduler(optimizer, d_model=accel.unwrap(model).embedding_dim)
-    scheduler.step()
+    # Scheduler Selection
+    if rlrop2:
+        scheduler = get_scheduler("rlrop", optimizer, factor=args["NoamScheduler.factor"], patience=args["NoamScheduler.warmup"], eps=1e-8, mode='min', threshold_mode='rel')
+    else:
+        scheduler = get_scheduler("noam", optimizer, d_model=accel.unwrap(model).embedding_dim, factor=args["NoamScheduler.factor"], warmup=args["NoamScheduler.warmup"])
 
     if "optimizer.pth" in v_extra:
         optimizer.load_state_dict(v_extra["optimizer.pth"])
+    if "scheduler.pth" in v_extra:
         scheduler.load_state_dict(v_extra["scheduler.pth"])
     if "tracker.pth" in v_extra:
         tracker.load_state_dict(v_extra["tracker.pth"])
+    scheduler.step()
     
     criterion = CrossEntropyLoss()
 
@@ -596,6 +613,7 @@ def train(
     val_idx: list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     num_workers: int = 10,
     fine_tune: bool = False, 
+    rlrop: bool = False,
 ):
     assert codec_ckpt is not None, "codec_ckpt is required"
 
@@ -611,15 +629,17 @@ def train(
         writer=writer, log_file=f"{save_path}/log.txt", rank=accel.local_rank
     )
 
+    rlrop2 = args.get("rlrop", False)
     # load the codec model
     state: State = load(
-        args=args, 
-        accel=accel, 
-        tracker=tracker, 
+        args=args,
+        accel=accel,
+        tracker=tracker,
         save_path=save_path,
-        resume=args.get("resume", False),  # Pass the parameter to the load function
-        nocompile=args.get("nocompile", False),  # Pass the parameter to the load function
-        lh=args.get("lh", False)  # Pass the parameter to the load function
+        resume=args.get("resume", False),
+        nocompile=args.get("nocompile", False),
+        lh=args.get("lh", False),
+        rlrop2=rlrop2
     )
     print("initialized state.")
 
@@ -641,7 +661,6 @@ def train(
     print("initialized dataloader.")
 
     
-
     if fine_tune:
         lora.mark_only_lora_as_trainable(state.model)
         print("marked only lora as trainable.")
@@ -672,15 +691,21 @@ def train(
                 save_samples(state, val_idx, writer)
 
             if tracker.step % val_freq == 0 or last_iter:
-                validate(state, val_dataloader, accel)
+                val_output = validate(state, val_dataloader, accel)
                 checkpoint(
                     state=state, 
                     save_iters=save_iters, 
                     save_path=save_path, 
-                    fine_tune=fine_tune)
+                    fine_tune=fine_tune
+                )
 
                 # Reset validation progress bar, print summary since last validation.
                 tracker.done("val", f"Iteration {tracker.step}")
+
+                if rlrop2:
+                    print(f"Scheduler state before step: {state.scheduler.scheduler.state_dict()}")
+                    state.scheduler.step(val_output["loss"])
+                    print(f"Scheduler state after step: {state.scheduler.scheduler.state_dict()}")
 
             if last_iter:
                 break
