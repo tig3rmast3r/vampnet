@@ -315,7 +315,6 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
     return output
 
-
 def validate(state, val_dataloader, accel):
     val_losses = []
     for batch in val_dataloader:
@@ -371,7 +370,6 @@ def checkpoint(state, save_iters, save_path, fine_tune):
         accel.unwrap(state.model).save_to_folder(
             f"{save_path}/{tag}", model_extra, package=False
         )
-
 
 def save_sampled(state, z, writer):
     num_samples = z.shape[0]
@@ -509,11 +507,7 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        if nocompile:
-            model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
-            print (f"torch.compile DISABLED")
-        else:
-            model = torch.compile(VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu"))
+        model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
 
     if resume:
         kwargs = {
@@ -530,12 +524,13 @@ def load(
             )
 
     if model is None:
-        if nocompile:
-            model = VampNet()
-            print (f"torch.compile DISABLED")
-        else:
-            model = torch.compile(VampNet())
-            
+        model = VampNet()
+    
+    if nocompile:
+        print(f"torch.compile DISABLED")
+    else:
+        model = torch.compile(model)
+    
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
@@ -550,7 +545,7 @@ def load(
     else:
         if lh:
             optimizer = AdamLH(model.parameters())
-            print (f"using LH optimizer")
+            print(f"using LH optimizer")
         else:
             optimizer = AdamW(model.parameters())
 
@@ -560,20 +555,21 @@ def load(
     else:
         scheduler = get_scheduler("noam", optimizer, d_model=accel.unwrap(model).embedding_dim, factor=args["NoamScheduler.factor"], warmup=args["NoamScheduler.warmup"])
 
-    if "optimizer.pth" in v_extra:
-        optimizer.load_state_dict(v_extra["optimizer.pth"])
-    if "scheduler.pth" in v_extra:
-        scheduler.load_state_dict(v_extra["scheduler.pth"])
-    if "tracker.pth" in v_extra:
-        tracker.load_state_dict(v_extra["tracker.pth"])
+    if resume:
+        if "optimizer.pth" in v_extra:
+            optimizer.load_state_dict(v_extra["optimizer.pth"])
+        if "scheduler.pth" in v_extra:
+            scheduler.load_state_dict(v_extra["scheduler.pth"])
+        if "tracker.pth" in v_extra:
+            tracker.load_state_dict(v_extra["tracker.pth"])
     scheduler.step()
-    
+
     criterion = CrossEntropyLoss()
 
     sample_rate = codec.sample_rate
 
     # a better rng for sampling from our schedule
-    rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])  
+    rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])
 
     # log a model summary w/ num params
     if accel.local_rank == 0:
@@ -598,6 +594,8 @@ def load(
     )
 
 
+
+
 @argbind.bind(without_prefix=True)
 def train(
     args,
@@ -606,13 +604,13 @@ def train(
     codec_ckpt: str = None,
     save_path: str = "ckpt",
     num_iters: int = int(1000e6),
-    save_iters: list = [10000, 50000, 100000, 300000, 500000,],
-    sample_freq: int = 10000, 
+    save_iters: list = [10000, 50000, 100000, 300000, 500000],
+    sample_freq: int = 10000,
     val_freq: int = 1000,
     batch_size: int = 12,
     val_idx: list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     num_workers: int = 10,
-    fine_tune: bool = False, 
+    fine_tune: bool = False,
     rlrop: bool = False,
 ):
     assert codec_ckpt is not None, "codec_ckpt is required"
@@ -660,7 +658,6 @@ def train(
     )
     print("initialized dataloader.")
 
-    
     if fine_tune:
         lora.mark_only_lora_as_trainable(state.model)
         print("marked only lora as trainable.")
@@ -693,9 +690,9 @@ def train(
             if tracker.step % val_freq == 0 or last_iter:
                 val_output = validate(state, val_dataloader, accel)
                 checkpoint(
-                    state=state, 
-                    save_iters=save_iters, 
-                    save_path=save_path, 
+                    state=state,
+                    save_iters=save_iters,
+                    save_path=save_path,
                     fine_tune=fine_tune
                 )
 
@@ -709,7 +706,6 @@ def train(
 
             if last_iter:
                 break
-
 
 if __name__ == "__main__":
     args = argbind.parse_args()
