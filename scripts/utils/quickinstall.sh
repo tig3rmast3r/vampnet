@@ -17,7 +17,8 @@
 
 git clone https://github.com/tig3rmast3r/vampnet
 #best python/pytorch combination for torch.compile to work with no errors
-conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia -y
+#conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia -y
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
 pip install cython
 apt install build-essential -y
 git clone https://github.com/CPJKU/madmom
