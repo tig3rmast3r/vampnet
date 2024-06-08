@@ -194,3 +194,4 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - Added options -nocompile and -lh on train.py
 - new loselesscompress script to quickly convert dataset from wav to flac and viceversa. helps uploading time and training time too.
 - new option for ReduceLROnPlateauScheduler as alternative to NoamScheduler
+- Flash Attention v2 integration (only single GPU for now)

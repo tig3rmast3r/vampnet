@@ -278,12 +278,15 @@ class TransformerLayer(nn.Module):
         self.flash_attn = flash_attn
 
         if flash_attn:
-            from flash_attn.flash_attention import FlashMHA
-            self.self_attn = FlashMHA(
+            from flash_attn.modules.mha import MHA
+            self.self_attn = MHA(
                 embed_dim=d_model,
                 num_heads=n_heads,
-                attention_dropout=dropout,
+                dropout=dropout,
                 causal=False,
+                #rotary_emb_dim=64,
+                #use_alibi=True,
+                use_flash_attn=True,
             )
         else:
             self.self_attn = MultiHeadRelativeAttention(
