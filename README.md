@@ -74,11 +74,11 @@ NoamScheduler.warmup in vampnet.yml will be treated as rlrop patience (number of
 
 You can use factor >1 to use it in "rise" mode, useful during the first phase of training to increase lr, while in this mode there are extra checks for gradient explosion, i made this mainly to try using flash attn v2 that is very prone to gradient explosion at beginning (training loop will be a bit slower)
 
-Also, starting lr will be honored by AdamW.lr in vampnet.yml (it has no sense when using noam scheduler as it will be immediately overwritten by Noam calculations)
+Also, leading lr will be honored by AdamW.lr in vampnet.yml (it has no sense when using noam scheduler as it will be immediately overwritten by Noam calculations)
 
-Other paramaters are fixed but you can change them editing vampnet/scheduler.py, (lines 32 and 57), mainly the other relevant value is threshold (0.001 by default), unless you want it to do a completely different task.
+Other paramaters are fixed but you can change them editing vampnet/scheduler.py, mainly the other relevant value is threshold (0.001 by default), unless you want it to do a completely different task.
 
-I've made little modifications to upgrade flash_attn to v2 that is faster and lets you choose bigger embedding/heads ratio. This will let you increase the batch size hugely (or just increase train loop speed with same batch), i was able to use batch 13 compared to just 4 with a 24gb 4090 (embedding 1760 and heads 22), still experimenting but it looks it's somewhat limited to very low lr values and it looks it doesn't worth, maybe just for the training end phase when the model is stable and lr is low.
+I've made little modifications to upgrade flash_attn to v2 (only for single GPU), that is faster and lets you choose bigger embedding/heads ratio. This will let you increase the batch size hugely (or just increase train loop speed with same batch), i was able to use batch 13 compared to just 4 with a 24gb 4090 (embedding 1760 and heads 22), still experimenting but it looks it's somewhat limited to very low lr values and it looks it doesn't worth, maybe just for the training end phase when the model is stable and lr is low.
 
 
 
