@@ -22,7 +22,7 @@ from vampnet.util import codebook_unflatten, codebook_flatten
 from vampnet import mask as pmask
 # from dac.model.dac import DAC
 from lac.model.lac import LAC as DAC
-from vampnet.scheduler import get_scheduler, NoamScheduler, ReduceLROnPlateauScheduler
+from vampnet.scheduler import get_scheduler, NoamScheduler, CustomReduceLROnPlateauScheduler
 
 from audiotools.ml.decorators import (
     timer, Tracker, when
@@ -198,10 +198,10 @@ class State:
     val_data: AudioDataset
 
     tracker: Tracker
-
+    latest_grad_norm: Optional[float] = None  # Store the latest grad norm
 
 @timer()
-def train_loop(state: State, batch: dict, accel: Accelerator):
+def train_loop(state: State, batch: dict, accel: Accelerator, rlrop: bool = False):
     state.model.train()
     batch = at.util.prepare_batch(batch, accel.device)
     signal = apply_transform(state.train_data.transform, batch)
@@ -255,17 +255,40 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
 
 
     accel.scaler.unscale_(state.optimizer)
-    output["other/grad_norm"] = torch.nn.utils.clip_grad_norm_(
-        state.model.parameters(), state.grad_clip_val
-    )
+    
+    grad_norm = torch.nn.utils.clip_grad_norm_(state.model.parameters(), max_norm=state.grad_clip_val) # outputs clipped
+    
+    #this is for custom rlrop when used in "rise" mode (factor>1), usefful when used with flash_attn v2 that is very prone to gradient explosion
+    #will lower lr immediately after 10 grad explosions
+    if rlrop and state.scheduler.factor > 1:
+        if grad_norm > state.grad_clip_val:
+            if not hasattr(state, 'grad_exceed_count'):
+                state.grad_exceed_count = 0
+            state.grad_exceed_count += 1
+            print(f"Gradient norm {grad_norm} exceeded clip value {state.grad_clip_val} and was clipped. Count: {state.grad_exceed_count}")
 
+            # Check if the count has reached 10
+            if state.grad_exceed_count >= 10 and isinstance(state.scheduler, CustomReduceLROnPlateauScheduler):
+                new_factor = 2.0 - state.scheduler.factor
+                
+                for param_group in state.optimizer.param_groups:
+                    param_group['lr'] = max(param_group['lr'] * new_factor, state.scheduler.min_lrs[0])
+                state.grad_exceed_count = 0  # Reset the count
+                print(f"Learning rate reduced by factor {new_factor} due to excessive grad norm.")
+
+        if not hasattr(state, 'grad_norms'):
+            state.grad_norms = []
+        state.grad_norms.append(grad_norm.item())
+        
+    output["other/grad_norm"] = grad_norm
     accel.step(state.optimizer)
     state.optimizer.zero_grad()
 
-    state.scheduler.step()
+    #scheduler.step only for NoamScheduler
+    if isinstance(state.scheduler, NoamScheduler):
+        state.scheduler.step()
+
     accel.update()
-
-
     return {k: v for k, v in sorted(output.items())}
 
 
@@ -315,7 +338,7 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
     return output
 
-def validate(state, val_dataloader, accel):
+def validate(state, val_dataloader, accel, rlrop: bool = False):
     val_losses = []
     for batch in val_dataloader:
         output = val_loop(state, batch, accel)
@@ -328,7 +351,13 @@ def validate(state, val_dataloader, accel):
     if hasattr(state.optimizer, "consolidate_state_dict"):
         state.optimizer.consolidate_state_dict()
     mean_val_loss = sum(val_losses) / len(val_losses)
-    return {"loss": mean_val_loss}
+    print(f"Mean Validation Loss: {mean_val_loss}")  # Print the mean validation loss
+    mean_grad_norm = state.mean_grad_norm if hasattr(state, 'mean_grad_norm') else None
+    print(f"Mean Grad Norm: {mean_grad_norm}")  # Print the mean grad norm
+    if rlrop:
+        return {"loss": mean_val_loss, "grad_norm": mean_grad_norm}
+    else:
+        return {"loss": mean_val_loss}
 
 
 
@@ -390,7 +419,7 @@ def save_sampled(state, z, writer):
 
 def save_imputation(state, z, val_idx, writer):
     n_prefix = int(z.shape[-1] * 0.25)
-    n_suffix = int(z.shape[-1] *  0.25)
+    n_suffix = int(z.shape[-1] * 0.25)
 
     vn = accel.unwrap(state.model)
 
@@ -409,8 +438,8 @@ def save_imputation(state, z, val_idx, writer):
                 time_steps=z.shape[-1],
                 start_tokens=z[i][None, ...],
                 mask=mask[i][None, ...],
-            )   
-        )   
+            )
+        )
     imputed = AudioSignal.batch(imputed)
 
     for i in range(len(val_idx)):
@@ -497,7 +526,7 @@ def load(
     lh: bool = False,
     tag: str = "latest",
     fine_tune_checkpoint: Optional[str] = None,
-    grad_clip_val: float = 5.0,
+    grad_clip_val: float = 10.0, #increased from 5
     rlrop2: bool = False,
 ) -> State:
     codec = DAC.load(args["codec_ckpt"], map_location="cpu")
@@ -551,9 +580,13 @@ def load(
 
     # Scheduler Selection
     if rlrop2:
-        scheduler = get_scheduler("rlrop", optimizer, factor=args["NoamScheduler.factor"], patience=args["NoamScheduler.warmup"], eps=1e-8, mode='min', threshold_mode='rel')
+        scheduler = CustomReduceLROnPlateauScheduler(
+            optimizer, factor=args["NoamScheduler.factor"], patience=args["NoamScheduler.warmup"], eps=1e-8, mode='min', threshold_mode='rel'
+        )
     else:
-        scheduler = get_scheduler("noam", optimizer, d_model=accel.unwrap(model).embedding_dim, factor=args["NoamScheduler.factor"], warmup=args["NoamScheduler.warmup"])
+        scheduler = NoamScheduler(
+            optimizer, d_model=accel.unwrap(model).embedding_dim, factor=args["NoamScheduler.factor"], warmup=args["NoamScheduler.warmup"]
+        )
 
     if resume:
         if "optimizer.pth" in v_extra:
@@ -562,7 +595,11 @@ def load(
             scheduler.load_state_dict(v_extra["scheduler.pth"])
         if "tracker.pth" in v_extra:
             tracker.load_state_dict(v_extra["tracker.pth"])
-    scheduler.step()
+    else:
+        if rlrop2:
+            scheduler.step(metrics=0)
+    if not rlrop2:
+        scheduler.step()
 
     criterion = CrossEntropyLoss()
 
@@ -678,7 +715,8 @@ def train(
     print("starting training loop.")
     with tracker.live:
         for tracker.step, batch in enumerate(train_dataloader, start=tracker.step):
-            train_loop(state, batch, accel)
+            train_output = train_loop(state, batch, accel, rlrop=rlrop)
+            state.latest_grad_norm = train_output.get("other/grad_norm", None)  # Update the latest grad norm
 
             last_iter = (
                 tracker.step == num_iters - 1 if num_iters is not None else False
@@ -688,7 +726,16 @@ def train(
                 save_samples(state, val_idx, writer)
 
             if tracker.step % val_freq == 0 or last_iter:
-                val_output = validate(state, val_dataloader, accel)
+                # Calculate mean grad norm for this training phase
+                if rlrop:
+                    if hasattr(state, 'grad_norms') and state.grad_norms:
+                        state.mean_grad_norm = sum(state.grad_norms) / len(state.grad_norms)
+                        state.grad_norms = []  # Reset for the next validation phase
+                    else:
+                        state.mean_grad_norm = None
+
+                val_output = validate(state, val_dataloader, accel, rlrop=rlrop)
+                print(f"Validation Output: {val_output}")  # Print validation output
                 checkpoint(
                     state=state,
                     save_iters=save_iters,
@@ -700,12 +747,13 @@ def train(
                 tracker.done("val", f"Iteration {tracker.step}")
 
                 if rlrop2:
-                    print(f"Scheduler state before step: {state.scheduler.scheduler.state_dict()}")
-                    state.scheduler.step(val_output["loss"])
-                    print(f"Scheduler state after step: {state.scheduler.scheduler.state_dict()}")
+                    print(f"Scheduler state before step: {state.scheduler.state_dict()}")
+                    state.scheduler.step(val_output["loss"], val_output.get("grad_norm"))
+                    print(f"Scheduler state after step: {state.scheduler.state_dict()}")
 
             if last_iter:
                 break
+
 
 if __name__ == "__main__":
     args = argbind.parse_args()
@@ -715,4 +763,3 @@ if __name__ == "__main__":
             if accel.local_rank != 0:
                 sys.tracebacklimit = 0
             train(args, accel)
-

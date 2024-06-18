@@ -64,7 +64,7 @@ You can experiment with an alternate version of adamw optimizer called AdamW-lh 
 source: https://fabian-sp.github.io/posts/2024/02/decoupling/
 
 
-Very rude implementation of ReduceLROnPlateauScheduler with command --rlrop
+New implementation CustomReduceLROnPlateauScheduler with command --rlrop
 
 When using this scheduler:
 
@@ -72,9 +72,14 @@ NoamScheduler.factor in vampnet.yml will be treated as rlrop factor (reduce next
 
 NoamScheduler.warmup in vampnet.yml will be treated as rlrop patience (number of bad vals before lr reduction, typical usage 10)
 
+You can use factor >1 to use it in "rise" mode, useful during the first phase of training to increase lr, while in this mode there are extra checks for gradient explosion, i made this mainly to try using flash attn v2 that is very prone to gradient explosion at beginning (training loop will be a bit slower)
+
 Also, starting lr will be honored by AdamW.lr in vampnet.yml (it has no sense when using noam scheduler as it will be immediately overwritten by Noam calculations)
 
 Other paramaters are fixed but you can change them editing vampnet/scheduler.py, (lines 32 and 57), mainly the other relevant value is threshold (0.001 by default), unless you want it to do a completely different task.
+
+I've made little modifications to upgrade flash_attn to v2 that is faster and lets you choose bigger embedding/heads ratio. This will let you increase the batch size hugely (or just increase train loop speed with same batch), i was able to use batch 13 compared to just 4 with a 24gb 4090 (embedding 1760 and heads 22), still experimenting but it looks it's somewhat limited to very low lr values and it looks it doesn't worth, maybe just for the training end phase when the model is stable and lr is low.
+
 
 
 for multi-gpu training, use torchrun:
@@ -188,9 +193,9 @@ Note: in order to use python 3.11.x (Windows only) install madmom from git sourc
 - new script parse_and_export_linux_log, will convert log.txt from training into csv (works only for linux logs)
 - new folder scripts/compare, temporary folder to fix bad audio results for training in linux (used in bash setup)
 - new bash script quickinstall.sh, use this to quickly configure a fresh ubuntu22.04 Cuda container, more info inside
-- new pth_reader to see pth content
+- new pth_editor to view/edit/add keys into pth files
 - new noam_recalculator, will recalculate noam.factor and step to maintain a similar decay curve when changing the batch size (moving to another server) and modifies tracker.pth and scheduler.pth accordingly
-- new pth_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
+- new noam_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
 - Added options -nocompile and -lh on train.py
 - new loselesscompress script to quickly convert dataset from wav to flac and viceversa. helps uploading time and training time too.
 - new option for ReduceLROnPlateauScheduler as alternative to NoamScheduler
