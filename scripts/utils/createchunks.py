@@ -74,6 +74,8 @@ def process_audio(file_path, output_dir, file_name):
             audio = AudioSegment.from_file(file_path, format='m4a')
         elif file_path.endswith('.aac'):
             audio = AudioSegment.from_file(file_path, format='aac')
+        elif file_path.endswith('.flac'):
+            audio = AudioSegment.from_file(file_path, format='flac')
         else:
             logging.warning(f"File {file_path} skipped: unsupported format.")
             return []  # skip if not audio
@@ -192,7 +194,7 @@ def main():
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
-            if file.endswith(('.wav', '.mp3', '.m4a', '.aac')):
+            if file.endswith(('.wav', '.mp3', '.m4a', '.aac', '.flac')):
                 file_path = os.path.join(root, file)
                 output_file_base = os.path.join(output_dir, f"{os.path.splitext(file)[0]}")
                 if any(os.path.exists(f"{output_file_base}_{str(i).zfill(3)}.wav") for i in range(1, (len(files) // 60000) + 2)):
