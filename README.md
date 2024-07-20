@@ -133,8 +133,6 @@ python  app.py --args.load conf/generated/<fine_tune_name>/interface.yml
 
 ## Fine-tuning ALT Method (for large datasets)
 Standard method is not usable for fine-tuning large dataset (error command line too long) so here's an alternative
-Put your samples folder into train/ eg:vampnet/train/mysamples/
-Put your (optional) validation samples in another folder on train/ eg:vampnet/train/myvalsamples/
 
 Case 1 (no validation samples folder)
 ```bash
@@ -142,7 +140,7 @@ python scripts/finetune/ftcfg.py <samplefolder> <fine_tune_name>
 ```
 example
 ```bash
-python scripts/finetune/ftcfg.py mysamples mymodel
+python scripts/finetune/ftcfg.py /dataset/mytrainsamples mymodel
 ```
 Case 2 (with validation sample folder)
 ```bash
@@ -150,7 +148,7 @@ python scripts/finetune/ftcfgval.py <samplefolder> <fine_tune_name> <valfolder>
 ```
 example
 ```bash
-python scripts/finetune/ftcfgval.py mysamples mymodel myvalsamples
+python scripts/finetune/ftcfgval.py /dataset/mytrainsamples mymodel /dataset/myvalsamples
 ```
 After that you can modify your lora.yml according to your desired epochs using the following script
 NOTE: configure conf/lora/lora.yml batch_size/num_workers according to you free gpu RAM.
@@ -163,7 +161,7 @@ python scripts/finetune/ftloracfg.py <samplefolder> <val_epochs_freq> <sample(sa
 ```
 example:
 ```bash
-python scripts/finetune/ftloracfg.py mysamples 25 50 100 200 300 400 500
+python scripts/finetune/ftloracfg.py /dataset/mytrainsamples 25 50 100 200 300 400 500
 ```
 Case 2 (with validation samples folder)
 ```bash
@@ -171,7 +169,7 @@ python scripts/finetune/ftloracfgval.py <samplefolder> <validation_folder> <val_
 ```
 example:
 ```bash
-python scripts/finetune/ftloracfgval.py mysamples myvalsamples 25 50 100 200 300 400 500
+python scripts/finetune/ftloracfgval.py /dataset/mytrainsamples /dataset/myvalsamples 25 50 100 200 300 400 500
 ```
 
 ## Fork_info

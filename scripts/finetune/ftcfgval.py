@@ -4,12 +4,12 @@ import argparse
 
 # Setup argparse to accept var1, var2, and var3 from the command line
 parser = argparse.ArgumentParser(description='Modify YAML files.')
-parser.add_argument('var1', type=str, help='First variable argument (samples folder in train/).')
+parser.add_argument('var1', type=str, help='First variable argument (samples folder).')
 parser.add_argument('var2', type=str, help='Second variable argument (finetune destination name in conf/generated/).')
 parser.add_argument('var3', type=str, help='Path for validation files.')
 args = parser.parse_args()
 
-var1 = args.var1  # Samples folder in train/
+var1 = args.var1  # Samples folder
 var2 = args.var2  # Finetune destination name in conf/generated/
 var3 = args.var3  # Validation samples folder
 
@@ -39,21 +39,23 @@ coarse_content = update_paths(coarse_content, f"./runs/{var2}/coarse", 5)
 interface_content[2] = f"Interface.coarse2fine_ckpt: ./runs/{var2}/c2f/latest/vampnet/weights.pth\n"
 interface_content[3] = f"Interface.coarse_ckpt: ./runs/{var2}/coarse/latest/vampnet/weights.pth\n"
 
-# Function to count the number of WAV files in a folder
-def count_wav_files(base_path):
-    return len(glob.glob(os.path.join(base_path, '*.wav')))
+# Function to count the number of audio files in a folder
+def count_audio_files(base_path):
+    audio_files = glob.glob(os.path.join(base_path, '*'))
+    audio_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg'}  # Add more extensions as needed
+    return len([file for file in audio_files if os.path.splitext(file)[1].lower() in audio_extensions])
 
-# Count the number of WAV files in the specified folder
-num_files = count_wav_files(f"train/{var1}/")
+# Count the number of audio files in the specified folder
+num_files = count_audio_files(var1)
 
 # Function to generate a list of files with absolute paths
 def generate_file_list(base_path):
-    wav_files = glob.glob(os.path.join(base_path, '*.wav'))
-    return [os.path.abspath(wav_file) for wav_file in wav_files]
+    audio_files = glob.glob(os.path.join(base_path, '*'))
+    audio_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg'}  # Add more extensions as needed
+    return [os.path.abspath(file) for file in audio_files if os.path.splitext(file)[1].lower() in audio_extensions]
 
 # Generate a list of files based on existing files
-base_path = os.path.join('train', var1)
-file_list = generate_file_list(base_path)
+file_list = generate_file_list(var1)
 
 # Function to insert a list of files into a YAML file
 def insert_file_list_in_yaml(yaml_content, file_list, line_number, is_interface=False):
@@ -74,11 +76,12 @@ interface_content = insert_file_list_in_yaml(interface_content, file_list, 2, is
 
 # Function to generate a list of validation files
 def generate_validation_file_list(base_path):
-    wav_files = glob.glob(os.path.join(base_path, '*.wav'))
-    return [os.path.abspath(wav_file) for wav_file in wav_files]
+    validation_files = glob.glob(os.path.join(base_path, '*'))
+    audio_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg'}  # Add more extensions as needed
+    return [os.path.abspath(file) for file in validation_files if os.path.splitext(file)[1].lower() in audio_extensions]
 
 # Generate a list of validation files
-validation_file_list = generate_validation_file_list(os.path.join('train', var3))
+validation_file_list = generate_validation_file_list(var3)
 
 # Replace the line for validation files in c2f and coarse content, then append the validation files
 for content in [c2f_content, coarse_content]:
@@ -104,3 +107,4 @@ def save_yaml_file(file_path, content):
 save_yaml_file(output_folder + 'c2f.yml', c2f_content)
 save_yaml_file(output_folder + 'coarse.yml', coarse_content)
 save_yaml_file(output_folder + 'interface.yml', interface_content)
+
