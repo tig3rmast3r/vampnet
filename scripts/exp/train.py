@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import argbind
 import audiotools as at
 import torch
+import time
 import torch.nn as nn
 from audiotools import AudioSignal
 from audiotools.data import transforms as tfm
@@ -615,7 +616,15 @@ def load(
             f.write(repr(accel.unwrap(model)))
 
     # load the datasets
-    train_data, val_data = build_datasets(args, sample_rate)
+    with argbind.scope(args, "train"):
+        train_data = AudioDataset(
+            AudioLoader(shuffle_state=int(time.time() * 1000) % (2**32 - 1)), 
+            sample_rate, 
+            transform=build_transform()
+        )
+    with argbind.scope(args, "val"):
+        val_data = AudioDataset(AudioLoader(), sample_rate, transform=build_transform())
+
 
     return State(
         tracker=tracker,
@@ -743,6 +752,22 @@ def train(
                     fine_tune=fine_tune
                 )
 
+                # Re-initialize the train dataloader with a new shuffle state
+                with argbind.scope(args, "train"):
+                    state.train_data = AudioDataset(
+                        AudioLoader(shuffle_state=int(time.time() * 1000) % (2**32 - 1)), 
+                        state.train_data.sample_rate, 
+                        transform=build_transform()
+                    )
+                    train_dataloader = accel.prepare_dataloader(
+                        state.train_data,
+                        start_idx=state.tracker.step * batch_size,
+                        num_workers=num_workers,
+                        batch_size=batch_size,
+                        collate_fn=state.train_data.collate,
+                    )
+                
+                
                 # Reset validation progress bar, print summary since last validation.
                 tracker.done("val", f"Iteration {tracker.step}")
 

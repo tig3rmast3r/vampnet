@@ -36,6 +36,7 @@ AudioLoader.relative_path: ""
 AudioDataset.loudness_cutoff: -30.0
 AudioDataset.without_replacement: true
 AudioLoader.shuffle: true
+val/AudioLoader.shuffle: false
 
 AudioDataset.duration: 10.0
 

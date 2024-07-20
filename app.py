@@ -639,7 +639,7 @@ with gr.Blocks() as demo:
         outputs=[output_audio, audio_mask], 
     )
 
-    api_vamp_button = gr.Button("api vamp", visible=False)
+    api_vamp_button = gr.Button("api vamp", visible=True)
     api_vamp_button.click(
         fn=api_vamp,
         inputs=_inputs, 

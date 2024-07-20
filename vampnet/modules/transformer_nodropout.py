@@ -59,7 +59,7 @@ class RMSNorm(nn.Module):
 
 class FeedForward(nn.Module):
     def __init__(
-        self, d_model: int = 512, dropout: float = 0.1, activation: str = "geglu"
+        self, d_model: int = 512, dropout: float = 0, activation: str = "geglu"
     ):
         super().__init__()
         factor = 2 if activation == "geglu" else 1
@@ -89,7 +89,7 @@ class MultiHeadRelativeAttention(nn.Module):
         self,
         n_head: int = 8,
         d_model: int = 512,
-        dropout: float = 0.1,
+        dropout: float = 0,
         bidirectional: bool = True,
         has_relative_attention_bias: bool = True,
         attention_num_buckets: int = 32,
@@ -266,7 +266,7 @@ class TransformerLayer(nn.Module):
         is_decoder: bool = False,
         has_relative_attention_bias: bool = False,
         flash_attn: bool = False,
-        dropout: float = 0.1,
+        dropout: float = 0,
     ):
         super().__init__()
         # Store args
@@ -283,9 +283,9 @@ class TransformerLayer(nn.Module):
                 embed_dim=d_model,
                 num_heads=n_heads,
                 dropout=dropout,
-                causal=False,
-                #rotary_emb_dim=64,
-                #use_alibi=True,
+                causal=False, #default
+                rotary_emb_dim=64, 
+                use_alibi=True,
                 use_flash_attn=True,
                 #softmax_scale=1.0 / math.sqrt(d_model // n_heads) #default
                 #rotary_emb_base=10000.0, #default
@@ -293,7 +293,7 @@ class TransformerLayer(nn.Module):
                 #rotary_emb_interleaved=False, #default
                 #fused_bias_fc=False, #default
                 #return_residual=False, #default
-                #dtype=None #default -> torch.float32?                                                                           
+                #dtype=None #default -> torch.float32?
             )
         else:
             self.self_attn = MultiHeadRelativeAttention(
@@ -389,7 +389,7 @@ class TransformerStack(nn.Module):
         bidirectional: bool = True,
         flash_attn: bool = False,
         is_decoder: bool = False,
-        dropout: float = 0.1,
+        dropout: float = 0,
     ):
         super().__init__()
         # Store args
@@ -485,7 +485,7 @@ class VampNet(at.ml.BaseModel):
         vocab_size: int = 1024,
         flash_attn: bool = True,
         noise_mode: str = "mask",
-        dropout: float = 0.1
+        dropout: float = 0
     ):
         super().__init__()
         assert r_cond_dim == 0, f"r_cond_dim must be 0 (not supported), but got {r_cond_dim}"
