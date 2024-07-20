@@ -147,7 +147,6 @@ pydantic                  2.5.3
 pydantic_core             2.14.6
 pydub                     0.25.1
 Pygments                  2.16.1
-pyharp                    0.1.0
 pyloudnorm                0.1.1
 pynndescent               0.5.11
 pyOpenSSL                 23.0.0
