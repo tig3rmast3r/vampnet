@@ -1,86 +1,136 @@
-# VampNet
+# VampNet (ismir2023 fork)
 
-This repository contains recipes for training generative music models on top of the Descript Audio Codec.
+This is a maintained fork of VampNet focused on reproducible Linux training,
+tokenized datasets, and checkpoint validation.
 
-## try `unloop`
-you can try vampnet in a co-creative looper called unloop. see this link: https://github.com/hugofloresgarcia/unloop
+The upstream README from the original fork point is available here:
+[`hugofloresgarcia/vampnet@72e2675/README.md`](https://github.com/hugofloresgarcia/vampnet/blob/72e2675790091fe28ecfd8391303a46b25a703db/README.md).
 
-# Setting up
+## Reproducible Install
 
-**Requires Python 3.9**. 
-
-you'll need a Python 3.9 environment to run VampNet. This is due to a [known issue with madmom](https://github.com/hugofloresgarcia/vampnet/issues/15). 
-
-(for example, using conda)
-```bash
-conda create -n vampnet python=3.9
-conda activate vampnet
-```
-
-
-install VampNet
+The canonical environment is `vampnet10`: Python 3.10.14, PyTorch 2.3.1,
+CUDA 12.1 runtime from Conda, in-env FFmpeg 4.3, pinned audio tooling, and
+pinned source forks for fragile dependencies such as `madmom`, `lac`,
+`audiotools`, and `wavebeat`.
 
 ```bash
-git clone https://github.com/hugofloresgarcia/vampnet.git
-pip install -e ./vampnet
+git clone https://github.com/tig3rmast3r/vampnet.git
+cd vampnet
+
+conda-lock install -n vampnet10 env/conda-lock.yml
+conda activate vampnet10
+
+pip install --no-deps -r env/source-requirements.txt
+pip install -r env/pip-requirements.txt
+pip install -e . --no-deps
 ```
 
-## A note on argbind
-This repository relies on [argbind](https://github.com/pseeth/argbind) to manage CLIs and config files. 
-Config files are stored in the `conf/` folder. 
+`env/environment.yml` is the human-readable Conda recipe used to regenerate
+the lock. For details and verification commands, see
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
 
-## Getting the Pretrained Models
+## Models
 
-### Licensing for Pretrained Models: 
-The weights for the models are licensed [`CC BY-NC-SA 4.0`](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ml). Likewise, any VampNet models fine-tuned on the pretrained models are also licensed [`CC BY-NC-SA 4.0`](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ml).
+Download the pretrained checkpoints from
+[`zenodo.org/record/8136629`](https://zenodo.org/record/8136629), then place
+them in this layout:
 
-Download the pretrained models from [this link](https://zenodo.org/record/8136629). Then, extract the models to the `models/` folder. 
+```text
+models/
+  vampnet/
+    codec.pth
+    coarse.pth
+    c2f.pth
+  wavebeat.pth
+```
 
+The model weights are licensed
+[`CC BY-NC-SA 4.0`](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en).
+Models fine-tuned from those weights inherit the same license constraints.
 
 # Usage
 
 ## Launching the Gradio Interface
-You can launch a gradio UI to play with vampnet. 
+
+You can launch a Gradio UI to experiment with VampNet.
 
 ```bash
 python app.py --args.load conf/interface.yml --Interface.device cuda
 ```
 
-# Training / Fine-tuning 
+# Training / Fine-tuning
+
+## Newer PyTorch versions and Blackwell GPUs
+
+A modified `train_blackwell.py` is provided for newer PyTorch versions. It is
+intended for PyTorch 2.7+, the minimum required for Blackwell GPU compatibility.
+I encountered severe gradient explosions when training with AMP on Blackwell
+GPUs. However, I have not tested this extensively enough to determine whether
+the issue is related to Blackwell itself or to the newer PyTorch stack. Since I
+do not own a Blackwell GPU, I cannot investigate it further.
+
+## Pre-Tokenizer (optional)
+
+For larger datasets, pre-tokenizing audio into `.tokens.npz` files can make
+training faster and use less RAM, because the codec encoding and audio decoding
+work is done once before training instead of repeatedly inside each training
+run.
+
+```bash
+python scripts/utils/pretokenize_dataset_codec.py \
+  --input-roots /path/to/DATASET /path/to/DATASET_no_kick \
+  --output-root /path/to/TOK_DATASET \
+  --codec-ckpt models/vampnet/codec.pth
+```
+
+Then point your training config to the tokenized folders and use
+`data_mode: tokenized`. See the script help for all options:
+
+```bash
+python scripts/utils/pretokenize_dataset_codec.py --help
+```
 
 ## Training a model
 
-To train a model, run the following script: 
+To train a model, run the following script:
 
 ```bash
-python scripts/exp/train.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints [--resume] [--nocompile] [--lh] [--rlrop]
+python scripts/exp/train.py --args.load conf/vampnet.yml --save_path /path/to/checkpoints [--resume] [--nocompile] [--lh] [--dropout]
 ```
-You can resume a training with --resume
+You can resume training with `--resume`.
 
-For Windows you must enable --nocompile option that will disable torch.compile that is not available (around 10% slower, Windows too is around 5% than linux).
+On Windows, use `--nocompile` unless you know your PyTorch/backend setup supports `torch.compile`.
+Windows CPU support exists in newer PyTorch versions, but this fork's canonical setup is Linux `vampnet10`.
 
-You can experiment with an alternate version of adamw optimizer called AdamW-lh using --lh option. (slower but lower grad_norm)
+You can enable dynamic LH weight decay with `lh: true`. In this mode `AdamW.weight_decay`
+is ignored and the real applied weight decay is derived from the scheduler LR, clamped between `lh_wd_start` and `lh_wd_end`.
 
-source: https://fabian-sp.github.io/posts/2024/02/decoupling/
+Background: [Decoupling weight decay](https://fabian-sp.github.io/posts/2024/02/decoupling/).
 
+To control transformer dropout from CLI without swapping source files:
 
-New implementation CustomReduceLROnPlateauScheduler with command --rlrop
+- default behavior is dropout OFF
+- `--dropout` enables dropout during training
+- `--VampNet.dropout <value>` sets dropout probability when enabled (if omitted and `--dropout` is set, default is `0.1`)
 
-When using this scheduler:
+Use `--amp` to enable BF16 precision, reducing VRAM use and accelerating
+training on modern GPUs.
 
-NoamScheduler.factor in vampnet.yml will be treated as rlrop factor (reduce next lr by factor, typical usage 0.5<->0.8)
+Use `scheduler: noam`, `scheduler: cosine`, or `scheduler: rlrop`.
 
-NoamScheduler.warmup in vampnet.yml will be treated as rlrop patience (number of bad vals before lr reduction, typical usage 10)
+RLROP uses dedicated keys:
 
-You can use factor >1 to use it in "rise" mode, useful during the first phase of training to increase lr, while in this mode there are extra checks for gradient explosion, i made this mainly to try using flash attn v2 that is very prone to gradient explosion at beginning (training loop will be a bit slower)
+- `RLROPScheduler.lr`
+- `RLROPScheduler.factor`
+- `RLROPScheduler.patience`
+- `RLROPScheduler.threshold`
+- `RLROPScheduler.threshold_mode`
+- `RLROPScheduler.min_lr`
+- `RLROPScheduler.warmup_steps`
 
-Also, leading lr will be honored by AdamW.lr in vampnet.yml (it has no sense when using noam scheduler as it will be immediately overwritten by Noam calculations)
-
-Other paramaters are fixed but you can change them editing vampnet/scheduler.py, mainly the other relevant value is threshold (0.001 by default), unless you want it to do a completely different task.
-
-I've made little modifications to upgrade flash_attn to v2 (only for single GPU), that is faster and lets you choose bigger embedding/heads ratio. This will let you increase the batch size hugely (or just increase train loop speed with same batch), i was able to use batch 13 compared to just 4 with a 24gb 4090 (embedding 1760 and heads 22), still experimenting but it looks it's somewhat limited to very low lr values and it looks it doesn't worth, maybe just for the training end phase when the model is stable and lr is low.
-
-
+This fork includes FlashAttention v2 support for compatible single-GPU configs.
+FlashAttention is optional; install `env/flash-attn.txt` only when using configs
+with `VampNet.flash_attn: true`.
 
 for multi-gpu training, use torchrun:
 
@@ -132,7 +182,7 @@ python  app.py --args.load conf/generated/<fine_tune_name>/interface.yml
 ```
 
 ## Fine-tuning ALT Method (for large datasets)
-Standard method is not usable for fine-tuning large dataset (error command line too long) so here's an alternative
+Upstream method is not usable for fine-tuning large dataset (error command line too long) so here's an alternative
 
 Case 1 (no validation samples folder)
 ```bash
@@ -150,10 +200,6 @@ example
 ```bash
 python scripts/finetune/ftcfgval.py /dataset/mytrainsamples mymodel /dataset/myvalsamples
 ```
-After that you can modify your lora.yml according to your desired epochs using the following script
-NOTE: configure conf/lora/lora.yml batch_size/num_workers according to you free gpu RAM.
-i suggest 5 for 24GB , 3 for 16GB, 2 for 12GB, 1 for 8GB, if you run out of vram it will continue but slower
-use same value for both batch_size/workers
 
 Case 1 (no validation samples folder)
 ```bash
@@ -172,29 +218,35 @@ example:
 python scripts/finetune/ftloracfgval.py /dataset/mytrainsamples /dataset/myvalsamples 25 50 100 200 300 400 500
 ```
 
-## Fork_info
-- Little modifications to let this work on Windows (and ubuntu WSL)
-Note: in order to use python 3.11.x (Windows only) install madmom from git source
+## Fork ChangeLog
+
+### 2024
+- Little modifications to let this work on Windows (and ubuntu WSL), you need to append cp1252 if you plan to train, see below
 - Alternate method to configure files for fine-tuning
-- New script createchunks.py, more info inside the script
 - Added cp1252_To_Append.py, you have to append those lines to your cp1252.py file under python_path\Lib\Encodings in order to avoid charmap errors during fine-tuning/training (Windows Only)
-- Added Gradio-Export script, this simple script will save your gradio-outputs wav files into gradio-export folder removing all folders and adding a timestamp prefix to names, the script supports also double click, no need to launch from command line
-- new script check_normalization, will check an entire folder (with optional normalization)
-- new script check_LUFS, will output LUFS for a folder
-- new script check cuda, check if cuda is working
-- new script train_calculator, will calculate total training based on settings, original model is around 2500 total train value (based on his pdf on ArXiv)
-- new script rename_special_chars, will rename audio chunks names to remove not ASCII chars that will lead to errors during training
-- new script convert_m4a_to_wav
-- new script convert_to_mono
-- new Powershell script demucs_folder, will separate tracks for an entire folder using facebookresearch's demucs
-- new script merge_demucs, will merge back demucsed files (you may want to merge back after having removed something eg.Drums)
-- new script parse_and_export_linux_log, will convert log.txt from training into csv (works only for linux logs)
-- new folder scripts/compare, temporary folder to fix bad audio results for training in linux (used in bash setup)
-- new bash script quickinstall.sh, use this to quickly configure a fresh ubuntu22.04 Cuda container, more info inside
-- new pth_editor to view/edit/add keys into pth files
-- new noam_recalculator, will recalculate noam.factor and step to maintain a similar decay curve when changing the batch size (moving to another server) and modifies tracker.pth and scheduler.pth accordingly
-- new noam_editor, you can manually change Noam.Factor Noam.warmup batch_size current_step and lr into tracker.pth, scheduler.pth and optimizer.pth, to make cyclic decay or other stuff
 - Added options -nocompile and -lh on train.py
-- new loselesscompress script to quickly convert dataset from wav to flac and viceversa. helps uploading time and training time too.
 - new option for ReduceLROnPlateauScheduler as alternative to NoamScheduler
-- Flash Attention v2 integration (only single GPU for now)
+- Flash Attention v2 integration
+- Gradio-Export script, which copies generated WAV files from `gradio-outputs` into `gradio-export` with timestamped filenames
+- new script rename_special_chars, will rename audio chunks names to remove not ASCII chars that will lead to errors during training
+- several other scripts (now under scripts/utils/legacy)
+
+### June 2026
+
+- [new] Blackwell/Torch 2.7+ training entrypoint (`train_blackwell.py`)
+- [fix] Dropout correctly disabled when set to 0 (saves VRAM)
+- [fix] Seeds are now step/epoch based and do not generate already-used patterns when resuming
+- [fix] Typical filter flag now applies correctly
+- [change] RLROP now has its own dedicated configuration variables
+- [new] Cosine scheduler
+- [new] Pretokenizer script and support for training with tokenized audio files
+- [new] Conda-lock reproducible install with pinned fork dependencies
+- [change] Improved `rename_special_chars` script
+- [change] Improved `gradio-export` script
+- [change] `--lh` behavior applied directly to AdamW (faster)
+- [new] Extra TensorBoard graphs for `--lh`
+- [new] Left-click logger audio player, CSV click annotations, and `move_files_from_csv` script
+- [new] Duration- and audio-matching dataset deduplication script
+- [new] Bulk folder conversion to mono FLAC
+- [new] `clean_audio_tree` utility
+- [new] Checkpoint validation script
