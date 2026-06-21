@@ -266,6 +266,10 @@ class TransformerLayer(nn.Module):
         is_decoder: bool = False,
         has_relative_attention_bias: bool = False,
         flash_attn: bool = False,
+        flash_attn_use_alibi: bool = False,
+        flash_attn_qkv_bias: bool = True,
+        flash_attn_out_bias: bool = True,
+        flash_attn_autocast_dtype: str = "bfloat16",
         dropout: float = 0.1,
     ):
         super().__init__()
@@ -276,16 +280,19 @@ class TransformerLayer(nn.Module):
         self.norm_1 = RMSNorm(d_model)
         self.film_1 = FiLM(d_cond, d_model)
         self.flash_attn = flash_attn
+        self.flash_attn_autocast_dtype = flash_attn_autocast_dtype
 
         if flash_attn:
             from flash_attn.modules.mha import MHA
             self.self_attn = MHA(
                 embed_dim=d_model,
                 num_heads=n_heads,
+                qkv_proj_bias=flash_attn_qkv_bias,
+                out_proj_bias=flash_attn_out_bias,
                 dropout=dropout,
                 causal=False,
                 #rotary_emb_dim=64,
-                #use_alibi=True,
+                use_alibi=flash_attn_use_alibi,
                 use_flash_attn=True,
                 #softmax_scale=1.0 / math.sqrt(d_model // n_heads) #default
                 #rotary_emb_base=10000.0, #default
@@ -349,7 +356,10 @@ class TransformerLayer(nn.Module):
         y = self.norm_1(x)
         y = self.film_1(y.permute(0, 2, 1), cond).permute(0, 2, 1)
         if self.flash_attn:
-            with torch.autocast(y.device.type, dtype=torch.bfloat16):
+            dtype = torch.bfloat16
+            if self.flash_attn_autocast_dtype == "float16":
+                dtype = torch.float16
+            with torch.autocast(y.device.type, dtype=dtype):
                 y = self.self_attn(y)[0]
         else:
             y, position_bias = self.self_attn(y, y, y, x_mask, position_bias)
@@ -388,6 +398,10 @@ class TransformerStack(nn.Module):
         last_layer: bool = True,
         bidirectional: bool = True,
         flash_attn: bool = False,
+        flash_attn_use_alibi: bool = False,
+        flash_attn_qkv_bias: bool = True,
+        flash_attn_out_bias: bool = True,
+        flash_attn_autocast_dtype: str = "bfloat16",
         is_decoder: bool = False,
         dropout: float = 0.1,
     ):
@@ -408,6 +422,10 @@ class TransformerStack(nn.Module):
                     is_decoder,
                     has_relative_attention_bias=True if (i == 0) else False,
                     flash_attn=flash_attn,
+                    flash_attn_use_alibi=flash_attn_use_alibi,
+                    flash_attn_qkv_bias=flash_attn_qkv_bias,
+                    flash_attn_out_bias=flash_attn_out_bias,
+                    flash_attn_autocast_dtype=flash_attn_autocast_dtype,
                     dropout=dropout,
                 )
                 for i in range(n_layers)
@@ -484,6 +502,10 @@ class VampNet(at.ml.BaseModel):
         embedding_dim: int = 1280,
         vocab_size: int = 1024,
         flash_attn: bool = True,
+        flash_attn_use_alibi: bool = False,
+        flash_attn_qkv_bias: bool = True,
+        flash_attn_out_bias: bool = True,
+        flash_attn_autocast_dtype: str = "bfloat16",
         noise_mode: str = "mask",
         dropout: float = 0.1
     ):
@@ -498,6 +520,10 @@ class VampNet(at.ml.BaseModel):
         self.vocab_size = vocab_size
         self.latent_dim = latent_dim
         self.flash_attn = flash_attn
+        self.flash_attn_use_alibi = flash_attn_use_alibi
+        self.flash_attn_qkv_bias = flash_attn_qkv_bias
+        self.flash_attn_out_bias = flash_attn_out_bias
+        self.flash_attn_autocast_dtype = flash_attn_autocast_dtype
         self.noise_mode = noise_mode
 
         assert self.noise_mode == "mask", "deprecated"
@@ -519,6 +545,10 @@ class VampNet(at.ml.BaseModel):
             last_layer=True,
             bidirectional=True,
             flash_attn=flash_attn,
+            flash_attn_use_alibi=flash_attn_use_alibi,
+            flash_attn_qkv_bias=flash_attn_qkv_bias,
+            flash_attn_out_bias=flash_attn_out_bias,
+            flash_attn_autocast_dtype=flash_attn_autocast_dtype,
             is_decoder=False,
             dropout=dropout,
         )
@@ -616,6 +646,8 @@ class VampNet(at.ml.BaseModel):
         return_signal=True,
         seed: int = None, 
         sample_cutoff: float = 1.0,
+        fixed_sample_cutoff: bool = False,
+        sample_cutoff_steps: int = 0,
     ):
         if seed is not None:
             at.util.seed(seed)
@@ -692,10 +724,13 @@ class VampNet(at.ml.BaseModel):
 
             logging.debug(f"permuted logits with shape: {logits.shape}")
 
+            do_sample = (
+                i < int(sample_cutoff_steps)
+                if fixed_sample_cutoff
+                else (i / sampling_steps) <= sample_cutoff
+            )
             sampled_z, selected_probs = sample_from_logits(
-                logits, sample=(
-                   (i / sampling_steps) <= sample_cutoff
-                ), 
+                logits, sample=do_sample,
                 temperature=sampling_temperature,
                 typical_filtering=typical_filtering, typical_mass=typical_mass,
                 typical_min_tokens=typical_min_tokens,
@@ -811,9 +846,10 @@ def sample_from_logits(
     shp = logits.shape[:-1]
 
     if typical_filtering:
-        typical_filter(logits, 
-                        typical_mass=typical_mass, 
-                        typical_min_tokens=typical_min_tokens
+        logits = typical_filter(
+            logits,
+            typical_mass=typical_mass,
+            typical_min_tokens=typical_min_tokens,
         )
 
     # Apply top_k sampling
@@ -877,6 +913,8 @@ def mask_by_random_topk(
     logging.debug("")
 
     noise = gumbel_noise_like(probs)
+    if torch.is_tensor(temperature) and temperature.ndim == 1:
+        temperature = temperature[:, None]
     confidence = torch.log(probs) + temperature * noise
     logging.debug(f"confidence shape: {confidence.shape}")
 
@@ -959,5 +997,3 @@ if __name__ == "__main__":
     args = argbind.parse_args()
     with argbind.scope(args):
         try_model()
-
-

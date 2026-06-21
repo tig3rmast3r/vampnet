@@ -59,8 +59,51 @@ install()
 
 # optim
 Accelerator = cast(Any, argbind.bind(at.ml.Accelerator, without_prefix=True))
-CrossEntropyLoss = cast(Any, argbind.bind(nn.CrossEntropyLoss))
-AdamW = cast(Any, argbind.bind(torch.optim.AdamW))
+
+
+@argbind.bind("CrossEntropyLoss")
+def CrossEntropyLoss(
+    ignore_index: int = -100,
+    reduction: str = "mean",
+    label_smoothing: float = 0.0,
+):
+    return nn.CrossEntropyLoss(
+        ignore_index=ignore_index,
+        reduction=reduction,
+        label_smoothing=label_smoothing,
+    )
+
+
+@argbind.bind("AdamW")
+def AdamW(
+    lr: float = 1e-3,
+    betas: tuple = (0.9, 0.999),
+    eps: float = 1e-8,
+    weight_decay: float = 0.01,
+    amsgrad: bool = False,
+    maximize: bool = False,
+    capturable: bool = False,
+    differentiable: bool = False,
+    foreach=None,
+    fused=None,
+):
+    kwargs = {
+        "lr": lr,
+        "betas": betas,
+        "eps": eps,
+        "weight_decay": weight_decay,
+        "amsgrad": amsgrad,
+        "maximize": maximize,
+        "capturable": capturable,
+        "differentiable": differentiable,
+    }
+    if foreach is not None:
+        kwargs["foreach"] = foreach
+    if fused is not None:
+        kwargs["fused"] = fused
+    return kwargs
+
+
 NoamScheduler = cast(Any, argbind.bind(vampnet.scheduler.NoamScheduler))
 RLROPScheduler = cast(Any, argbind.bind(vampnet.scheduler.RLROPScheduler))
 WarmupFlatCosineScheduler = cast(
@@ -596,7 +639,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
             mask = pmask.random(z, r)
         mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
         z_mask, mask = pmask.apply_mask(z, mask, vn.mask_token)
-        
+
         z_mask_latent = vn.embedding.from_codes(z_mask, state.codec)
 
         dtype = torch.bfloat16 if accel.amp else None
@@ -623,7 +666,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
             output=output,
         )
 
-    
+
     accel.backward(output["loss"])
 
     output["other/learning_rate"] = state.optimizer.param_groups[0]["lr"]
@@ -631,9 +674,9 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
 
 
     accel.scaler.unscale_(state.optimizer)
-    
+
     grad_norm = torch.nn.utils.clip_grad_norm_(state.model.parameters(), max_norm=state.grad_clip_val) # outputs clipped
-    
+
     #this is for custom rlrop when used in "rise" mode (factor>1), usefful when used with flash_attn v2 that is very prone to gradient explosion
     #will lower lr immediately after 10 grad explosions
     if state.scheduler_type == "rlrop" and state.scheduler.factor > 1:
@@ -646,7 +689,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
             # Check if the count has reached 10
             if state.grad_exceed_count >= 10:
                 new_factor = 2.0 - state.scheduler.factor
-                
+
                 for param_group in state.optimizer.param_groups:
                     param_group['lr'] = max(param_group['lr'] * new_factor, state.scheduler.min_lrs[0])
                 state.grad_exceed_count = 0  # Reset the count
@@ -655,7 +698,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
         if not hasattr(state, 'grad_norms'):
             state.grad_norms = []
         state.grad_norms.append(grad_norm.item())
-        
+
     _apply_lh_weight_decay(state)
 
     output["other/grad_norm"] = grad_norm
@@ -983,12 +1026,12 @@ def load(
         args["VampNet.dropout"] = 0.0
         _set_all_dropouts(model, 0.0)
         print("dropout disabled (default): forcing all dropout rates to 0.0")
-    
+
     if nocompile:
         print(f"torch.compile DISABLED")
     else:
         model = torch.compile(model)
-    
+
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
@@ -998,10 +1041,14 @@ def load(
 
     if accel.world_size > 1:
         from torch.distributed.optim import ZeroRedundancyOptimizer
-        optimizer = ZeroRedundancyOptimizer(model.parameters(), AdamW)
+        optimizer = ZeroRedundancyOptimizer(
+            model.parameters(),
+            torch.optim.AdamW,
+            **AdamW(),
+        )
         print(f"OPTIMIZER LR is {optimizer.param_groups[0]['lr']}")
     else:
-        optimizer = AdamW(model.parameters())
+        optimizer = torch.optim.AdamW(model.parameters(), **AdamW())
 
     lh_reference_lr = _resolve_lh_reference_lr(
         args,

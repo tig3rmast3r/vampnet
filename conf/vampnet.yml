@@ -30,13 +30,12 @@ VampNet.embedding_dim: 1280
 VampNet.n_layers: 20
 VampNet.n_heads: 20
 VampNet.flash_attn: false
-VampNet.dropout: 0.1
+VampNet.dropout: 0
 
 AudioLoader.relative_path: ""
 AudioDataset.loudness_cutoff: -30.0
 AudioDataset.without_replacement: true
 AudioLoader.shuffle: true
-val/AudioLoader.shuffle: false
 
 AudioDataset.duration: 10.0
 
@@ -47,4 +46,3 @@ train/AudioLoader.sources:
 val/AudioDataset.n_examples: 2000
 val/AudioLoader.sources:
   - /media/CHONK/hugo/spotdl/audio-val
-
