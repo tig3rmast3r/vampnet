@@ -1,40 +1,78 @@
-#simple utility to extract output.wav from gradio-outputs, wav files will be saved into gradio-export folder, timestamp will be added ad prefix
+from __future__ import annotations
 
-import os
 import shutil
+from collections import defaultdict
 from datetime import datetime
-
-# abs path
-script_dir = os.path.dirname(os.path.realpath(__file__))
-
-# base path
-base_dir = os.path.dirname(os.path.dirname(script_dir))
-
-# gradio path
-output_dir = os.path.join(base_dir, "gradio-outputs")
-#input_dir = os.path.join(base_dir, "gradio-outputs/tmp")
-
-# export path
-destination_dir = os.path.join(base_dir, "gradio-export")
-
-# create folder
-if not os.path.exists(destination_dir):
-    os.makedirs(destination_dir)
-
-# copy and rename method
-def copy_and_rename_files(source_dir, file_name, file_suffix):
-    for folder_name in os.listdir(source_dir):
-        folder_path = os.path.join(source_dir, folder_name)
-        if os.path.isdir(folder_path):
-            file_path = os.path.join(folder_path, file_name)
-            if os.path.isfile(file_path):
-                timestamp = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y%m%d%H%M%S')
-                new_file_name = f"{timestamp}_{file_suffix}.wav"
-                new_file_path = os.path.join(destination_dir, new_file_name)
-                shutil.copy2(file_path, new_file_path)
+from pathlib import Path
 
 
-copy_and_rename_files(output_dir, 'output.wav', 'output')
-#copy_and_rename_files(input_dir, 'input.wav', 'input')
+SCRIPT_DIR = Path(__file__).resolve().parent
+BASE_DIR = SCRIPT_DIR.parent.parent
+OUTPUT_DIR = BASE_DIR / "gradio-outputs"
+DESTINATION_DIR = BASE_DIR / "gradio-export"
 
-print("completed")
+
+def timestamp_for(folder: Path) -> str:
+    output = folder / "output.wav"
+    source = output if output.is_file() else folder
+    return datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y%m%d%H%M%S")
+
+
+def suffix_for(index: int) -> str:
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    return letters[index % len(letters)]
+
+
+def variant_label(path: Path) -> str:
+    if path.name == "variant_1.wav":
+        return "original"
+    if path.stem.startswith("variant_"):
+        try:
+            variant = int(path.stem.split("_")[-1]) - 1
+        except ValueError:
+            return path.stem
+        return f"variant{variant}"
+    return path.stem
+
+
+def export_folder(folder: Path, timestamp: str, suffix: str) -> int:
+    copied = 0
+    output = folder / "output.wav"
+    if output.is_file():
+        shutil.copy2(output, DESTINATION_DIR / f"{timestamp}_output_{suffix}.wav")
+        copied += 1
+
+    variants_dir = folder / "variants"
+    if variants_dir.is_dir():
+        for source in sorted(variants_dir.glob("variant_*.wav")):
+            label = variant_label(source)
+            shutil.copy2(source, DESTINATION_DIR / f"{timestamp}_{label}_{suffix}.wav")
+            copied += 1
+    return copied
+
+
+def main() -> int:
+    DESTINATION_DIR.mkdir(parents=True, exist_ok=True)
+    if not OUTPUT_DIR.is_dir():
+        print(f"missing {OUTPUT_DIR}")
+        return 1
+
+    folders_by_timestamp: dict[str, list[Path]] = defaultdict(list)
+    for folder in sorted(OUTPUT_DIR.iterdir()):
+        if not folder.is_dir() or folder.name in {"tmp", "saved"}:
+            continue
+        if not (folder / "output.wav").is_file() and not (folder / "variants").is_dir():
+            continue
+        folders_by_timestamp[timestamp_for(folder)].append(folder)
+
+    copied = 0
+    for timestamp, folders in sorted(folders_by_timestamp.items()):
+        for index, folder in enumerate(sorted(folders)):
+            copied += export_folder(folder, timestamp, suffix_for(index))
+
+    print(f"completed: copied {copied} files")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
