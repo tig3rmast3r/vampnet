@@ -1,7 +1,7 @@
 import torch
 import sys
 
-# Soglia per determinare se un gruppo è troppo grande per essere visualizzato completamente
+# Threshold used to decide whether a group is too large to print in full.
 MAX_GROUP_SIZE = 10 * 1024  # 10 KB
 
 def display_keys(data):
@@ -138,4 +138,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

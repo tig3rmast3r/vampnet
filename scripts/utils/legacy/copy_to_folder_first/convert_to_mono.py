@@ -4,26 +4,26 @@ import os
 def convert_to_mono(file_path):
     audio = AudioSegment.from_wav(file_path)
 
-    # Verifica se il file è già mono
+    # Skip files that are already mono.
     if audio.channels == 1:
-        print(f"Il file {file_path} è già mono.")
+        print(f"File is already mono: {file_path}")
         return
 
-    # Converti in mono prendendo solo il canale sinistro
+    # Convert to mono by selecting one channel.
     mono_audio = audio.set_channels(1)
 
-    # Sovrascrivi il file originale con la versione mono
+    # Overwrite the original file with the mono version.
     mono_audio.export(file_path, format="wav")
-    print(f"File convertito in mono: {file_path}")
+    print(f"Converted to mono: {file_path}")
 
-# Percorso della cartella corrente
+# Current working directory.
 directory = os.getcwd()
 
-# Elenco di tutti i file WAV nella cartella
+# List all WAV files in the directory.
 wav_files = [f for f in os.listdir(directory) if f.endswith('.wav')]
 
-# Conversione di ogni file WAV in mono
+# Convert each WAV file to mono.
 for wav_file in wav_files:
     convert_to_mono(os.path.join(directory, wav_file))
 
-print("Conversione completata.")
+print("Conversion complete.")

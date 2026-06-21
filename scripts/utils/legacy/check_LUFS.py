@@ -17,7 +17,7 @@ def check_normalization(folder_path):
                 loudness = meter.integrated_loudness(data)
                 print(f'"{file}" LUFS = {loudness:.2f}')
             except Exception as e:
-                print(f'Errore reading file "{file}": {str(e)}')
+                print(f'Error reading file "{file}": {str(e)}')
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

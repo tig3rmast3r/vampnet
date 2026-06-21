@@ -3,9 +3,13 @@ import sys
 from pydub import AudioSegment
 from concurrent.futures import ThreadPoolExecutor
 
-def convert_wav_to_flac(file_path):
+COMPRESS_EXTENSIONS = {'.wav', '.wave', '.aif', '.aiff'}
+EXPAND_EXTENSIONS = {'.flac'}
+
+
+def convert_audio_to_flac(file_path):
     flac_path = os.path.splitext(file_path)[0] + '.flac'
-    audio = AudioSegment.from_wav(file_path)
+    audio = AudioSegment.from_file(file_path)
     audio.export(flac_path, format='flac')
     os.remove(file_path)
     print(f"Converted and removed {file_path}")
@@ -17,13 +21,29 @@ def convert_flac_to_wav(file_path):
     os.remove(file_path)
     print(f"Converted and removed {file_path}")
 
+
+def list_files_recursively(folder_path):
+    for root, _, filenames in os.walk(folder_path):
+        for filename in filenames:
+            yield os.path.join(root, filename)
+
+
 def process_files(folder_path, operation, num_threads):
-    files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if
-             (f.endswith('.wav') and operation == '-compress') or (f.endswith('.flac') and operation == '-expand')]
+    all_files = list(list_files_recursively(folder_path))
+    if operation == '-compress':
+        files = [
+            file_path for file_path in all_files
+            if os.path.splitext(file_path)[1].lower() in COMPRESS_EXTENSIONS
+        ]
+    else:
+        files = [
+            file_path for file_path in all_files
+            if os.path.splitext(file_path)[1].lower() in EXPAND_EXTENSIONS
+        ]
 
     if operation == '-compress':
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            executor.map(convert_wav_to_flac, files)
+            executor.map(convert_audio_to_flac, files)
     elif operation == '-expand':
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             executor.map(convert_flac_to_wav, files)
