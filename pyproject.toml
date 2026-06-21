@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vampnet"
+version = "0.0.1"
+description = "Generative music modeling with VampNet."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Hugo Flores Garcia, Prem Seetharaman" }
+]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Artistic Software",
+  "Topic :: Multimedia",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Multimedia :: Sound/Audio :: Editors",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/tig3rmast3r/vampnet"
+Upstream = "https://github.com/hugofloresgarcia/vampnet"
+
+[tool.setuptools.packages.find]
+include = ["vampnet*"]

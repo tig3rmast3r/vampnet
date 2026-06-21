@@ -1,0 +1,29 @@
+name: vampnet10
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10.14
+  - pip
+  - setuptools
+  - wheel
+
+  # PyTorch/CUDA stack used by the canonical vampnet10 environment.
+  - pytorch=2.3.1
+  - torchaudio=2.3.1
+  - torchvision=0.18.1
+  - pytorch-cuda=12.1
+
+  # Audio decoding/runtime pieces. Keep ffmpeg inside the Conda env so
+  # AudioSignal does not fall back to a different system ffmpeg.
+  - ffmpeg=4.3
+  - libsndfile
+  - lame
+  - openh264
+
+  # Numeric stack versions observed in the working vampnet10 environment.
+  - numpy=1.23.0
+  - scipy=1.11.1
+  - cython=3.0.2

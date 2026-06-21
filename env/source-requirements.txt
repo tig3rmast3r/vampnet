@@ -1,0 +1,12 @@
+# Source packages pinned to fork commits.
+#
+# Install this file with --no-deps before env/pip-requirements.txt:
+#   pip install --no-deps -r env/source-requirements.txt
+#
+# This avoids resolver conflicts from old package metadata that points at the
+# original upstream repositories while keeping the actual installed code pinned
+# to the fork commits used for this VampNet environment.
+madmom @ git+https://github.com/tig3rmast3r/madmom.git@0551aa8f48d71a367d92b5d3a347a0cf7cd97cc9
+descript-audiotools @ git+https://github.com/tig3rmast3r/audiotools.git@49b8b6bb9259a99bda5f2138a1a4df055dd172ef
+lac @ git+https://github.com/tig3rmast3r/lac.git@b6fbbcd4a9cccadb65d2f1822c4fd9461fecefcb
+wavebeat @ git+https://github.com/tig3rmast3r/wavebeat.git@d8642da31a1256aa952b2753566fff0aab7d9e2d
