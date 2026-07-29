@@ -250,3 +250,7 @@ python scripts/finetune/ftloracfgval.py /dataset/mytrainsamples /dataset/myvalsa
 - [new] Bulk folder conversion to mono FLAC
 - [new] `clean_audio_tree` utility
 - [new] Checkpoint validation script
+
+## Support
+
+If you find this useful, you can leave a tip through [my Ko-fi page](https://ko-fi.com/tig3rmast3r) by using the Sponsor button at the top of this repository. Every contribution is appreciated and helps me dedicate more time to updates, fixes, and new projects.
